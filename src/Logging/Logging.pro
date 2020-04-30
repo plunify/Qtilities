@@ -13,6 +13,7 @@ INCLUDEPATH += $$QTILITIES_INCLUDE/QtilitiesLogging
 INCLUDEPATH += $$QTILITIES_SOURCE/Common
 
 CONFIG += qt dll
+CONFIG += c++11
 
 QT += core
 QT -= gui

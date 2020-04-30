@@ -11,6 +11,8 @@ include(../Qtilities.pri)
 INCLUDEPATH += $$QTILITIES_INCLUDE/QtilitiesExtensionSystem
 
 CONFIG += qt dll
+CONFIG += c++11
+
 QT += xml gui
 # Note: xml module is deprecated
 

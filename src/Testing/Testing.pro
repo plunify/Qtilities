@@ -12,6 +12,8 @@ include(../Qtilities.pri)
 INCLUDEPATH += $$QTILITIES_INCLUDE/Testing
 
 CONFIG += qt dll
+CONFIG += c++11
+
 QT += xml gui
 # Note: xml module is deprecated
 greaterThan(QT_MAJOR_VERSION, 4) { QT += widgets printsupport testlib }

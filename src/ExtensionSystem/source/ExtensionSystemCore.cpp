@@ -139,7 +139,7 @@ void Qtilities::ExtensionSystem::ExtensionSystemCore::initialize() {
 
     foreach (const QString& path, d->customPluginPaths) {
         emit newProgressMessage(QString("Searching for plugins in directory: %1").arg(path));
-        LOG_INFO(QString("Searching for plugins in directory: %1").arg(path));
+        LOG_DEBUG(QString("Searching for plugins in directory: %1").arg(path));
         QCoreApplication::processEvents();
 
         QDir dir(path);
@@ -172,7 +172,7 @@ void Qtilities::ExtensionSystem::ExtensionSystemCore::initialize() {
 
             if (!is_filtered_plugin) {
                 if (QLibrary::isLibrary(dir.absoluteFilePath(fileName))) {
-                    LOG_INFO("Found library: " + stripped_file_name);
+                    LOG_DEBUG("SUCCESS   : Found library: " + stripped_file_name);
                     QPluginLoader loader(dir.absoluteFilePath(fileName));
                     QObject *obj = loader.instance();
                     if (obj) {
@@ -180,7 +180,7 @@ void Qtilities::ExtensionSystem::ExtensionSystemCore::initialize() {
                         IPlugin* pluginIFace = qobject_cast<IPlugin*> (obj);
                         if (pluginIFace) {
                             emit newProgressMessage(QString("Loading plugin from file: %1").arg(stripped_file_name));
-                            LOG_INFO(QString("Loading plugin from file: %1").arg(stripped_file_name));
+                            LOG_DEBUG(QString("SUCCESS   : Load plugin from file: %1").arg(stripped_file_name));
                             QCoreApplication::processEvents();
 
                             // Check that the plugins with the same does not exist:
@@ -230,7 +230,7 @@ void Qtilities::ExtensionSystem::ExtensionSystemCore::initialize() {
                                     pluginIFace->addPluginState(IPlugin::ErrorState);
                                     pluginIFace->addErrorMessages(error_strings);
                                 } else {
-                                    LOG_INFO("Successfully initialized plugin \"" + stripped_file_name + "\".");
+                                    LOG_INFO("SUCCESS   : Initialized plugin \"" + stripped_file_name + "\".");
                                 }
                                 #ifdef QTILITIES_BENCHMARKING
                                 time(&end_init);
@@ -239,10 +239,10 @@ void Qtilities::ExtensionSystem::ExtensionSystemCore::initialize() {
                                 #endif
                             }
                         } else {
-                            LOG_ERROR("Plugin found which does not implement the expected IPlugin interface.");
+                            LOG_ERROR("FAILED    : Plugin found which does not implement the expected IPlugin interface.");
                         }
                     } else {
-                        LOG_ERROR(QString("Plugin could not be loaded: %1. Error: %2").arg(stripped_file_name).arg(loader.errorString()));
+                        LOG_ERROR(QString("FAILED    : Plugin could not be loaded: %1. Error: %2").arg(stripped_file_name).arg(loader.errorString()));
                         qDebug() << QString("Plugin could not be loaded: %1. Error: %2").arg(stripped_file_name).arg(loader.errorString());
                     }
                 }

@@ -295,6 +295,8 @@ struct Qtilities::CoreGui::ObserverWidgetData {
     QList<QPointer<QObject> >   last_expanded_objects_result;
     QStringList                 last_expanded_names_result;
     QStringList                 last_expanded_categories_result;
+    QStringList                 last_collapsed_categories_result;
+    QStringList                 all_categories_result;
 
     bool disable_proxy_models;
 
@@ -367,6 +369,8 @@ void Qtilities::CoreGui::ObserverWidget::constructPrivate(DisplayMode display_mo
     setObjectName(context_string);
 
     setDockNestingEnabled(true);
+
+    need_resize = true;
 
     if (observer_context) {
         setObserverContext(observer_context);
@@ -443,7 +447,7 @@ bool Qtilities::CoreGui::ObserverWidget::setObserverContext(Observer* observer) 
     if (d->display_mode == TableView && d->table_name_column_delegate)
         d->table_name_column_delegate->setObserverContext(observer);
     else if (d->display_mode == TreeView && d->tree_name_column_delegate)
-        d->tree_name_column_delegate->setObserverContext(observer); 
+        d->tree_name_column_delegate->setObserverContext(observer);
 
     emit observerContextChanged(d->selection_parent_observer_context);
 
@@ -695,10 +699,15 @@ void Qtilities::CoreGui::ObserverWidget::updateLastExpandedResults(const QModelI
             QString item_text = d->tree_model->data(mapped_source_index,Qt::DisplayRole).toString();
             if (item_text.endsWith("*"))
                 item_text.chop(1);
-            if (item->itemType() == ObserverTreeItem::CategoryItem)
+            if (item->itemType() == ObserverTreeItem::CategoryItem) {
+                d->last_collapsed_categories_result.removeAll(item_text);
                 d->last_expanded_categories_result << item_text;
-            else if (item->itemType() == ObserverTreeItem::TreeNode)
+                if (!d->all_categories_result.contains(item_text)) {
+                    d->all_categories_result << item_text;
+                }
+            } else if (item->itemType() == ObserverTreeItem::TreeNode) {
                 d->last_expanded_names_result << item_text;
+            }
             QObject* obj = d->tree_model->getObject(mapped_source_index);
             if (obj)
                 d->last_expanded_objects_result << obj;
@@ -716,9 +725,10 @@ void Qtilities::CoreGui::ObserverWidget::updateLastExpandedResults(const QModelI
             QString item_text = d->tree_model->data(mapped_source_index,Qt::DisplayRole).toString();
             if (item_text.endsWith("*"))
                 item_text.chop(1);
-            if (item->itemType() == ObserverTreeItem::CategoryItem)
-                d->last_expanded_categories_result.removeOne(item_text);
-            else if (item->itemType() == ObserverTreeItem::TreeNode)
+            if (item->itemType() == ObserverTreeItem::CategoryItem) {
+                d->last_collapsed_categories_result << item_text;
+                d->last_expanded_categories_result.removeAll(item_text);
+            } else if (item->itemType() == ObserverTreeItem::TreeNode)
                 d->last_expanded_names_result.removeOne(item_text);
             QObject* obj = d->tree_model->getObject(mapped_source_index);
             if (obj)
@@ -3109,7 +3119,11 @@ void Qtilities::CoreGui::ObserverWidget::viewCollapseAll() {
         d->last_expanded_categories_result.clear();
 
         d->do_column_resizing = current_do_column_resizing;
-        resizeColumns();
+
+        if(need_resize)
+        {
+            resizeColumns();
+        }
     }
 }
 
@@ -3119,7 +3133,10 @@ void Qtilities::CoreGui::ObserverWidget::viewExpandAll() {
         d->do_column_resizing = false;
         d->tree_view->expandAll();
         d->do_column_resizing = current_do_column_resizing;
-        resizeColumns();
+        if(need_resize)
+        {
+            resizeColumns();
+        }
     }
 }
 
@@ -3864,9 +3881,12 @@ void Qtilities::CoreGui::ObserverWidget::adaptColumns(const QModelIndex & toplef
 void Qtilities::CoreGui::ObserverWidget::handleTreeModelBuildAboutToStart() {
     if (displayMode() == Qtilities::TreeView) {
         if (d->do_auto_select_and_expand) {
-            QStringList expanded_categories = lastExpandedCategoriesResults();
+            // Before expanding correct category expand all items than filter correct ones based on last_collapsed_categories_result list.
+            disconnect(d->tree_view,SIGNAL(expanded(QModelIndex)),this, SLOT(handleExpanded(QModelIndex)));
+            d->tree_view->expandAll();
+            connect(d->tree_view,SIGNAL(expanded(QModelIndex)),SLOT(handleExpanded(QModelIndex)));
             QList<QPointer<QObject> > expanded_objects = lastExpandedObjectsResults();
-            d->tree_model->setExpandedItems(expanded_objects,expanded_categories);
+            d->tree_model->setExpandedItems(expanded_objects, d->last_collapsed_categories_result);
         }
     }
 }
@@ -3875,7 +3895,10 @@ void Qtilities::CoreGui::ObserverWidget::handleExpanded(const QModelIndex &index
     if (!index.isValid())
         return;
 
-    resizeColumns();
+    if(need_resize)
+    {
+        resizeColumns();
+    }
     updateLastExpandedResults(index);
     emit expandedNodesChanged(lastExpandedItemsResults());
     emit expandedObjectsChanged(lastExpandedObjectsResults());
@@ -3885,7 +3908,10 @@ void Qtilities::CoreGui::ObserverWidget::handleCollapsed(const QModelIndex &inde
     if (!index.isValid())
         return;
 
-    resizeColumns();
+    if(need_resize)
+    {
+        resizeColumns();
+    }
     updateLastExpandedResults(QModelIndex(),index);
     emit expandedNodesChanged(lastExpandedItemsResults());
     emit expandedObjectsChanged(lastExpandedObjectsResults());
@@ -3926,7 +3952,7 @@ void Qtilities::CoreGui::ObserverWidget::expandNodes(QModelIndexList indexes) {
         return;
 
     if (d->tree_view && d->display_mode == Qtilities::TreeView) {
-        if (indexes.isEmpty()) {
+        if (indexes.isEmpty() && d->last_collapsed_categories_result.isEmpty()) {
             viewExpandAll();
             return;
         }
@@ -3934,14 +3960,22 @@ void Qtilities::CoreGui::ObserverWidget::expandNodes(QModelIndexList indexes) {
         bool current_do_column_resizing = d->do_column_resizing;
         d->do_column_resizing = false;
 
-        d->tree_view->collapseAll();
+        //d->tree_view->collapseAll();
+        // Prevent collapsing already expanded categories.  
+        QModelIndexList all_indexes = d->tree_model->findExpandedNodeIndexes(d->all_categories_result);
+        foreach(QModelIndex index, all_indexes) {
+            if (proxyModel()) {
+                if (d->last_expanded_categories_result.contains(index.data(Qt::DisplayRole).toString())) {
+                    indexes << index;
+                }
+            }
+        }
         foreach (QModelIndex index, indexes) {
             if (proxyModel())
                 d->tree_view->setExpanded(proxyModel()->mapFromSource(index),true);
             else
                 d->tree_view->setExpanded(index,true);
         }
-
         d->do_column_resizing = current_do_column_resizing;
         resizeColumns();
     }

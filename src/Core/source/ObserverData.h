@@ -151,6 +151,7 @@ namespace Qtilities {
             // --------------------------------
         public:
             PointerList                         subject_list;
+            QMap<QString, int>                  prev_category_to_count;
             //! Stores a list of all observers under this observer.
             /*!
               Used to optimize performance.

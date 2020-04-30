@@ -33,6 +33,7 @@ struct GenericPropertyData {
         visible(true),
         default_visible(true),
         default_value_set(false),
+        text_visible(false),
         int_max(INT_MAX),
         int_min(INT_MIN),
         int_step(1),
@@ -66,6 +67,7 @@ struct GenericPropertyData {
     bool visible;
     bool default_visible;
     bool default_value_set;
+    bool text_visible;
 
     int int_max;
     int int_min;
@@ -110,6 +112,7 @@ GenericProperty::GenericProperty(const GenericProperty& ref) : QObject(ref.paren
     d->category = ref.category();
     d->value = ref.valueString();
     d->default_value = ref.defaultValueString();
+    d->text_visible = ref.textVisible();
     d->switch_name = ref.switchName();
     d->description = ref.description();
     d->help_id = ref.helpID();
@@ -142,6 +145,7 @@ GenericProperty& GenericProperty::operator=(const GenericProperty& ref) {
     d->category = ref.category();
     d->value = ref.valueString();
     d->default_value = ref.defaultValueString();
+    d->text_visible = ref.textVisible();
     d->switch_name = ref.switchName();
     d->description = ref.description();
     d->help_id = ref.helpID();
@@ -311,6 +315,14 @@ void GenericProperty::setCategory(QtilitiesCategory category) {
 
 QString GenericProperty::valueString() const {
     return d->value;
+}
+
+bool GenericProperty::textVisible() const {
+    return d->text_visible;
+}
+
+void GenericProperty::setTextVisible(bool value) {
+    d->text_visible = value;
 }
 
 bool GenericProperty::setValueString(const QString &value, QString *errorMsg) {

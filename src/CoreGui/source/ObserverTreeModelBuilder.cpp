@@ -133,12 +133,11 @@ void Qtilities::CoreGui::ObserverTreeModelBuilder::buildRecursive(ObserverTreeIt
 
             if (use_categorized) {
                 // Get the object / category hash:
-                QMap<QPointer<QObject>, QString> category_map = observer->subjectReferenceCategoryMap();
-                QSet<QString> categories = category_map.values().toSet();
-
-                foreach (const QString& category_string, categories) {
+                QList<QPair<QPointer<QObject>, QString> > category_map = observer->subjectReferenceCategoryMap();
+                int count = category_map.count();
+                for (int i = 0;  i < count;  ++i) {
                     //QApplication::processEvents();
-                    QtilitiesCategory category = QtilitiesCategory(category_string,"::");
+                    QtilitiesCategory category = QtilitiesCategory(category_map.at(i).second,"::");
                     // Check the category against the displayed category list:
                     bool valid_category = true;
                     if (hints_to_use) {
@@ -195,15 +194,21 @@ void Qtilities::CoreGui::ObserverTreeModelBuilder::buildRecursive(ObserverTreeIt
                                 new_item->setCategory(category_levels);
 
                                 // Append new item to correct parent item:
-                                if (tree_item_list.count() == 0)
+                                if (tree_item_list.count() == 0) 
                                     item->appendChild(new_item);
-                                else
+                                else 
                                     tree_item_list.last()->appendChild(new_item);
+                                
                                 tree_item_list.push_back(new_item);
 
                                 // If this item has locked access, we don't dig into any items underneath it:
                                 if (observer->accessMode(shortened_category) != Observer::LockedAccess) {
-                                    QList<QPointer<QObject> > safe_list = category_map.keys(category_levels.join("::"));
+                                    QList<QPointer<QObject> > safe_list;
+                                    for (int j = 0; j < count; ++j) {
+                                        if (category_map.at(j).second == category_levels.join("::")) {
+                                            safe_list.append(category_map.at(j).first);
+                                        }
+                                    }
                                     buildRecursive(new_item,safe_list);
                                 } else
                                     break;

@@ -91,7 +91,7 @@ GenericPropertyBrowser::GenericPropertyBrowser(GenericPropertyManager* property_
 
     if (browser_type == TreeBrowser) {
         QtTreePropertyBrowser* property_browser = new QtTreePropertyBrowser(this);
-        property_browser->setRootIsDecorated(false);
+        property_browser->setRootIsDecorated(true);
         d->property_browser = property_browser;
     } else if (browser_type == GroupBoxBrowser) {
         QtGroupBoxPropertyBrowser* property_browser = new QtGroupBoxPropertyBrowser(this);
@@ -309,7 +309,6 @@ void GenericPropertyBrowser::updatePropertyValue(QtProperty *property, const QVa
 
     d->current_edited_property = property;
     property->setToolTip(getToolTipText(prop));
-
     prop->setValue(value);
 
     // When changed from the display side and its a macro, we should
@@ -445,6 +444,8 @@ void GenericPropertyBrowser::handlePropertyNoteChanged(GenericProperty *property
 void GenericPropertyBrowser::inspectPropertyManager() {
     clear();
 
+    QList<QtProperty*> collapsed_properties;
+
     QMap<QtilitiesCategory,QtProperty*> category_property_map;
     QList<QObject*> objects = d->generic_property_manager->propertiesObserver()->subjectReferences();
     bool use_switch_names = d->generic_property_manager->showSwitchNames();
@@ -499,6 +500,7 @@ void GenericPropertyBrowser::inspectPropertyManager() {
             sub_property = d->bool_property_manager->addProperty(name);
             if (sub_property) {
                 d->bool_property_manager->setValue(sub_property,prop->boolValue());
+                d->bool_property_manager->setTextVisible(sub_property,prop->textVisible());
             }
         } else if (prop->type() == GenericProperty::TypeVariant) {
             // Note that TypeVariant properties do not respond to changes from the property's side, or from the editor's side.
@@ -512,6 +514,7 @@ void GenericPropertyBrowser::inspectPropertyManager() {
         }
 
         if (sub_property) {
+
             sub_property->setModified(!prop->matchesDefault());
             sub_property->setToolTip(getToolTipText(prop));
 
@@ -546,6 +549,11 @@ void GenericPropertyBrowser::inspectPropertyManager() {
 
                     d->property_browser->addProperty(category_property);
                     d->top_level_properties << category_property;
+
+                    if(!prop->category().expanded()) {
+                        collapsed_properties << category_property;
+                    }
+
                 }
             }
 
@@ -560,6 +568,17 @@ void GenericPropertyBrowser::inspectPropertyManager() {
             }
         }
     }
+
+    QtTreePropertyBrowser* tree_browser = qobject_cast<QtTreePropertyBrowser*> (d->property_browser);
+    if(tree_browser) {
+        foreach(QtProperty *prop, collapsed_properties) {
+            QList<QtBrowserItem *> items = tree_browser->items(prop);
+            foreach(QtBrowserItem *item, items) {
+                tree_browser->setExpanded(item, false);
+            }
+        }
+    }
+
 }
 
 QString GenericPropertyBrowser::getToolTipText(GenericProperty *property) {

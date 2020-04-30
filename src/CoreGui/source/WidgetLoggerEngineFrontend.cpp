@@ -35,6 +35,8 @@
 #include <QDockWidget>
 #include <QTabBar>
 
+#include <CodeEditor>
+
 using namespace Qtilities::Core;
 using namespace Qtilities::CoreGui;
 using namespace Qtilities::CoreGui::Icons;
@@ -61,7 +63,7 @@ struct Qtilities::CoreGui::MessagesPlainTextEditTabPrivateData {
         central_widget(0) {}
 
     SearchBoxWidget* searchBoxWidget;
-    QPlainTextEdit txtLog;
+    CodeEditor txtLog;
     QAction* actionCopy;
     QAction* actionSelectAll;
     QAction* actionClear;
@@ -111,9 +113,14 @@ Qtilities::CoreGui::MessagesPlainTextEditTab::MessagesPlainTextEditTab(QWidget *
 
     // Setup the log widget:
     d->txtLog.setReadOnly(true);
-    d->txtLog.setFont(QFont("Courier New"));
-    d->txtLog.setMaximumBlockCount(1000);
+    #ifdef Q_OS_WIN
+        d->txtLog.setFont(QFont("Courier New", 9));
+    #else
+        d->txtLog.setFont(QFont("Monospace", 8));
+    #endif
+    d->txtLog.setMaximumBlockCount(999999);
     d->txtLog.setFrameShape(QFrame::NoFrame);
+//    d->txtLog.setLineWrapMode(QPlainTextEdit::NoWrap);
 
     d->central_widget = new QWidget;
 
@@ -416,6 +423,8 @@ void Qtilities::CoreGui::MessagesPlainTextEditTab::constructActions() {
     // ---------------------------
     d->actionLineWrap = new QAction(QIcon(qti_icon_LINE_WRAP_16x16),QObject::tr("Wrap Lines"),this);
     d->actionLineWrap->setCheckable(true);
+    //turn it to false when you dont want to wrap and
+    //uncomment line 119
     d->actionLineWrap->setChecked(true);
     d->action_provider->addAction(d->actionLineWrap,QtilitiesCategory(tr("Log")));
     connect(d->actionLineWrap,SIGNAL(triggered()),SLOT(handle_LineWrap()));
@@ -481,6 +490,7 @@ void Qtilities::CoreGui::MessagesPlainTextEditTab::constructActions() {
     }
 
     // Add actions to text edit.
+    d->txtLog.addAction(d->actionCopy);
     d->txtLog.addAction(d->actionClear);
     d->txtLog.addAction(d->actionSave);
     d->sep1 = new QAction("",0);

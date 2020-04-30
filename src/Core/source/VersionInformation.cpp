@@ -12,7 +12,6 @@
 #include "VersionInformation.h"
 
 #include <QStringList>
-
 // ------------------------------------
 // VersionNumber
 // ------------------------------------
@@ -27,7 +26,8 @@ struct Qtilities::Core::VersionNumberPrivateData {
           is_version_minor_used(true),
           is_version_revision_used(true),
           development_stage(VersionNumber::DevelopmentStageNone),
-          version_development_stage(0) {}
+          version_development_stage(""),
+          version_variant("") {}
 
     int         version_major;
     int         version_minor;
@@ -39,7 +39,10 @@ struct Qtilities::Core::VersionNumberPrivateData {
 
     VersionNumber::DevelopmentStage development_stage;
     QString                         development_stage_identifier;
-    int                             version_development_stage;
+    //int                             version_development_stage;
+    QString                         version_development_stage;
+    // for quartus pro edition
+    QString                         version_variant;
 };
 
 Qtilities::Core::VersionNumber::VersionNumber() {
@@ -82,6 +85,7 @@ Qtilities::Core::VersionNumber::VersionNumber(const VersionNumber& ref)  {
 
     d->development_stage = ref.developmentStage();
     d->development_stage_identifier = ref.developmentStageIdentifier();
+    d->version_variant = ref.getVersionVariant();
     d->version_development_stage = ref.versionDevelopmentStage();
 }
 
@@ -108,6 +112,10 @@ bool Qtilities::Core::VersionNumber::operator==(const VersionNumber& ref) const 
             return false;
     }
 
+    if (d->version_variant != ref.getVersionVariant()) {
+        return false;
+    }
+
     return true;
 }
 
@@ -125,6 +133,7 @@ Qtilities::Core::VersionNumber& Qtilities::Core::VersionNumber::operator=(const 
     d->field_width_revision = ref.fieldWidthRevision();
     d->is_version_minor_used = ref.isVersionMinorUsed();
     d->is_version_revision_used = ref.isVersionRevisionUsed();
+    d->version_variant = ref.getVersionVariant();
 
     return *this;
 }
@@ -168,6 +177,31 @@ bool Qtilities::Core::VersionNumber::operator<(const VersionNumber& ref) {
                 // In this case consider the development stage order:
                 if ((int) developmentStage(true) < (int) ref.developmentStage(true))
                     return true;
+            }
+        }
+
+        return false;
+    }
+
+    // pro
+    if (!this->d->version_variant.isEmpty() || !ref.getVersionVariant().isEmpty()) {
+        // Handle case: 1.5.3 < 2.5.3
+        if (d->version_major < ref.versionMajor())
+            return true;
+        // Handle case: 1.4.3 < 1.5.3 and 2.4.3 < 1.5.3
+        if (d->version_minor < ref.versionMinor() && d->version_major == ref.versionMajor())
+            return true;
+        // Handle case: 1.5.2 < 1.5.3 and 2.5.2 < 1.5.3 and 2.6.2 < 1.5.3
+        if (d->version_revision < ref.versionRevision() && d->version_minor == ref.versionMinor() && d->version_major == ref.versionMajor())
+            return true;
+
+        // If we get here, we know the major, minor and revision version is NOT smaller. Thus, we check if they are the same if and
+        // they are we know we can check the development stage versions:
+        if (d->version_revision == ref.versionRevision() && d->version_minor == ref.versionMinor() && d->version_major == ref.versionMajor()) {
+            if (this->d->version_variant.isEmpty()) {
+                return true;
+            } else {
+                return false;
             }
         }
 
@@ -313,12 +347,27 @@ void Qtilities::Core::VersionNumber::setDevelopmentStage(Qtilities::Core::Versio
     }
 }
 
-int Qtilities::Core::VersionNumber::versionDevelopmentStage() const {
+QString Qtilities::Core::VersionNumber::versionDevelopmentStage() const {
     return d->version_development_stage;
 }
 
 void Qtilities::Core::VersionNumber::setVersionDevelopmentStage(int version) {
+    d->version_development_stage = QString::number(version);
+}
+
+void Qtilities::Core::VersionNumber::setVersionDevelopmentStage(QString version)
+{
     d->version_development_stage = version;
+}
+
+void Qtilities::Core::VersionNumber::setVersionVariant(QString variant)
+{
+    d->version_variant = variant;
+}
+
+QString Qtilities::Core::VersionNumber::getVersionVariant() const
+{
+    return d->version_variant;
 }
 
 QString Qtilities::Core::VersionNumber::toString(const QString& seperator) const {
@@ -340,9 +389,11 @@ QString Qtilities::Core::VersionNumber::toString(const QString& seperator) const
     } else if (!d->is_version_minor_used && !d->is_version_revision_used)
         version = QString::number(d->version_major);
 
-    if (d->development_stage != DevelopmentStageNone && d->version_development_stage != 0) {
+    version.append(d->version_variant);
+
+    if (d->development_stage != DevelopmentStageNone && !d->version_development_stage.isEmpty()) {
         version.append(d->development_stage_identifier);
-        version.append(QString::number(d->version_development_stage));
+        version.append(d->version_development_stage);
     }
 
     return version;
@@ -350,6 +401,7 @@ QString Qtilities::Core::VersionNumber::toString(const QString& seperator) const
 
 void Qtilities::Core::VersionNumber::fromString(const QString& version, const QString& seperator, const QString& stage_identifier, DevelopmentStage stage) {
     QString cleaned_version = version.toLower();
+
     cleaned_version.replace(" ","");
 
     QStringList list = cleaned_version.split(seperator,QString::SkipEmptyParts);
@@ -396,6 +448,7 @@ void Qtilities::Core::VersionNumber::fromString(const QString& version, const QS
             if (revision_split.count() > 0)
                 revision_string = revision_split.front();
         }
+
         int tmp_int = revision_string.toInt(&conv_ok);
         if (conv_ok)
             d->version_revision = tmp_int;
@@ -405,10 +458,17 @@ void Qtilities::Core::VersionNumber::fromString(const QString& version, const QS
     if (local_stage != DevelopmentStageNone) {
         QStringList stage_split_list = list.last().split(local_stage_identifier,QString::SkipEmptyParts);
         if (stage_split_list.count() == 2) {
-            int tmp_int = stage_split_list.last().toInt(&conv_ok);
-            if (conv_ok)
-                d->version_development_stage = tmp_int;
+//      stage is changed to QString
+//            int tmp_int = stage_split_list.last().toInt(&conv_ok);
+//            if (conv_ok)
+                d->version_development_stage = stage_split_list.last();
         }
+    }
+
+    // check if it's pro
+    QString strLastPro = list.last();
+    if (strLastPro.indexOf("pro") >= 0) {
+        d->version_variant = "pro";
     }
 }
 

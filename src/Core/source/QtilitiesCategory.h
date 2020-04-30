@@ -172,10 +172,12 @@ sure that categories are handled the same way everywhere. Some usages in %Qtilit
                 QList<QPointer<QObject> > import_list;
                 setExportVersion(version);
                 importBinary(ds,import_list);
+                d_expanded = true;
             }
             QtilitiesCategory(const QtilitiesCategory& category) : IObjectBase(), IExportable() {
                 d_category_levels = category.d_category_levels;
                 d_access_mode = category.d_access_mode;
+                d_expanded = category.d_expanded;
             }
             virtual ~QtilitiesCategory() {}
             QtilitiesCategory& operator=(const QtilitiesCategory& other);
@@ -273,6 +275,15 @@ sure that categories are handled the same way everywhere. Some usages in %Qtilit
                     return QString();
             }
 
+            //! Determines if the category should be displayed expanded or not. Only works with QtTreePropertyBrowser
+            bool expanded() const {
+                return d_expanded;
+            }
+
+            void setExpanded(bool expanded) {
+                d_expanded = expanded;
+            }
+
             // --------------------------------
             // IObjectBase Implementation
             // --------------------------------
@@ -303,6 +314,7 @@ sure that categories are handled the same way everywhere. Some usages in %Qtilit
         protected:
             QList<CategoryLevel>    d_category_levels;
             int                     d_access_mode;
+            bool                    d_expanded;
             //QIcon*                  d_category_icon;
         };
     }

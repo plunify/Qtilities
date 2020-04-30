@@ -432,8 +432,10 @@ categorized_widget->show();
              * <i>This function was added in %Qtilities v1.5.</i>
              */
             QStringList lastExpandedCategoriesResults() const;
+            bool set_need_resize(bool need) { need_resize = need; }
 
         private:
+            bool need_resize;
             //! Function used internally by findExpandedObjects() and findExpandedItems() to avoid doing duplicate work.
             void updateLastExpandedResults(const QModelIndex& to_add = QModelIndex(), const QModelIndex& to_remove = QModelIndex());
 

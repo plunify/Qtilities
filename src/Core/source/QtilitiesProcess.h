@@ -381,6 +381,8 @@ my_process.addProcessBufferMessageTypeHint(message_hint_error);
              */
             void clearLastRunBuffer();
 
+            void setTimeoutFromMaxTimeout(int i_maxruntime);
+
         protected slots:
             void manualAppendLastRunBuffer();
             void readStandardOutput();
@@ -390,6 +392,7 @@ my_process.addProcessBufferMessageTypeHint(message_hint_error);
             void procFinished(int exit_code, QProcess::ExitStatus exit_status);
             void procError(QProcess::ProcessError error);
             void stopTimedOut();
+            void checkTimeoutForExtension();
 
         public slots:
             //! Stops the process.
@@ -404,6 +407,7 @@ my_process.addProcessBufferMessageTypeHint(message_hint_error);
 
         private:
             QtilitiesProcessPrivateData* d;
+
         };
     }
 }

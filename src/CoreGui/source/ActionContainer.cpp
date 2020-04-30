@@ -61,6 +61,7 @@ void Qtilities::CoreGui::MenuContainer::addAction(Command *command, const QStrin
         d->this_menu->insertAction(d->id_action_map[d->id_action_map.keys().at(0)],command->action());
     else
         d->this_menu->addAction(command->action());*/
+
     d->this_menu->addAction(command->action());
 }
 
@@ -105,10 +106,12 @@ void Qtilities::CoreGui::MenuContainer::addMenu(ActionContainer *menu, const QSt
         }
     }
 
-    if (d->id_action_map.count() > 0)
-        d->this_menu->insertMenu(d->id_action_map[d->id_action_map.keys().at(0)],menu->menu());
-    else
-        d->this_menu->addMenu(menu->menu());
+//    if (d->id_action_map.count() > 0)
+//        d->this_menu->insertMenu(d->id_action_map[d->id_action_map.keys().at(0)],menu->menu());
+//    else
+//        d->this_menu->addMenu(menu->menu());
+
+    d->this_menu->addMenu(menu->menu());
 }
 
 // --------------------------------

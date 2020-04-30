@@ -121,6 +121,13 @@ public:
      */
     bool zipFiles(const QStringList& files, const QString& output_file, QStringList* errorMsgs = 0);
 
+    //! Convenience function to append a list of files to existing zip file.
+    /*!
+     * \note This function will automatically prepend and append " characters to the path in order to support paths with spaces. Thus do not do this manually, the Zipper will do it for you.
+     * \returns True if the operation completed successfully, false otherwise.
+     */
+    bool zipAppendFiles(const QStringList& files, const QString& output_file, QStringList* errorMsgs = 0);
+
     //! The possible zip modes applicable to archiving folders.
     enum ZipMode {
         CopyMode = 0,       /*!< Only do a copy, uses the -mx0 switch. */
@@ -144,6 +151,17 @@ public:
      * \returns True if the operation completed successfully, false otherwise.
      */
     bool zipFolder(const QString& folder_path, const QString& output_file, ZipMode mode = CompressMode, QStringList* errorMsgs = 0);
+    //! Convenience function to unzip a file to a folder.
+    /*!
+        \note This function will automatically prepend and append " characters to the path in order to support paths with spaces. Thus do not do this manually, the Zipper will do it for you.
+
+        \returns True if the operation completed successfully, false otherwise.
+      */
+    //! Convenience function to append a folder to an existing zip file.
+    /*!
+     * \returns True if the operation completed successfully, false otherwise.
+     */
+    bool zipAppendFolder(const QString& folder_path, const QString& output_file, ZipMode mode = CompressMode, QStringList* errorMsgs = 0);
     //! Convenience function to unzip a file to a folder.
     /*!
         \note This function will automatically prepend and append " characters to the path in order to support paths with spaces. Thus do not do this manually, the Zipper will do it for you.
@@ -190,6 +208,13 @@ public:
      * \returns The information of the archive. If the information could not be obtained, returns an empty string and sets ok to false.
      */
     QString zipInfo(const QString& file_path, bool *ok, QStringList* errorMsgs = 0);
+    //! Function to rename the information about an archive, using the \p l command.
+    /*!
+     * \param file_path The archive.
+     * \param ok Indicates if the information returned is valid. When true, the error that occured can be obtained through lastProcessErrorMsg().
+     * \returns The information of the archive. If the information could not be obtained, returns an empty string and sets ok to false.
+     */
+    bool zipRename(const QString& file_path, QMap<QString,QString> replacements, bool *ok, QStringList* errorMsgs = 0);
 
 protected:
     //! Executes a zip command with the given arguments.

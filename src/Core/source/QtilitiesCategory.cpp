@@ -81,6 +81,7 @@ Qtilities::Core::QtilitiesCategory::QtilitiesCategory(const QString& category_le
         addLevel(category_level_name);
     d_access_mode = 3;
     //d_category_icon = 0;
+    d_expanded = true;
 }
 
 Qtilities::Core::QtilitiesCategory::QtilitiesCategory(const QString& category_levels, const QString& seperator) : IExportable() {
@@ -91,6 +92,7 @@ Qtilities::Core::QtilitiesCategory::QtilitiesCategory(const QString& category_le
     }
     d_access_mode = 3;
     //d_category_icon = 0;
+    d_expanded = true;
 }
 
 Qtilities::Core::QtilitiesCategory::QtilitiesCategory(const QStringList& category_name_list) : IExportable() {
@@ -98,6 +100,7 @@ Qtilities::Core::QtilitiesCategory::QtilitiesCategory(const QStringList& categor
         addLevel(level);
     d_access_mode = 3;
     //d_category_icon = 0;
+    d_expanded = true;
 }
 
 QtilitiesCategory& Qtilities::Core::QtilitiesCategory::operator=(const QtilitiesCategory& other) {
@@ -105,6 +108,7 @@ QtilitiesCategory& Qtilities::Core::QtilitiesCategory::operator=(const Qtilities
 
     d_category_levels = other.categoryLevels();
     d_access_mode = other.accessMode();
+    d_expanded = other.expanded();
 //    if (!other.categoryIcon().isNull())
 //        d_category_icon = new QIcon(other.categoryIcon());
 

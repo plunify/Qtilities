@@ -30,6 +30,10 @@ Qtilities::Core::Zipper::Zipper(const QString& path_7za, const QString& ignore_l
         d->temp_dir = QtilitiesCoreApplication::applicationSessionPath();
     else
         d->temp_dir = temp_dir;
+
+    //QRegExp reg_exp_error1 = QRegExp(".*Error.*",Qt::CaseInsensitive);
+    //ProcessBufferMessageTypeHint message_hint_error1(reg_exp_error1,Logger::Error);
+    //d->zip_process.addProcessBufferMessageTypeHint(message_hint_error1);
 }
 
 Qtilities::Core::Zipper::~Zipper() {
@@ -81,6 +85,51 @@ QString Qtilities::Core::Zipper::zipInfo(const QString& file_path, bool *ok, QSt
     QString buffer = d->zip_process.lastRunBuffer();
     d->zip_process.setLastRunBufferEnabled(current_use_run_buffer);
     return buffer;
+}
+
+bool Qtilities::Core::Zipper::zipRename(const QString& file_path, QMap<QString,QString> replacements, bool *ok, QStringList* errorMsgs) {
+    if (file_path.isEmpty()) {
+        if (errorMsgs)
+            errorMsgs->append("Empty archive path specified.");
+        if (ok)
+            *ok = false;
+        return false;
+    }
+
+    QFileInfo fi(file_path);
+    if (!fi.exists()) {
+        if (errorMsgs)
+            errorMsgs->append("Specified archive does not exist: " + file_path);
+        if (ok)
+            *ok = false;
+        return false;
+    }
+
+    QMapIterator<QString,QString> replacements_itr(replacements);
+    bool current_use_run_buffer = d->zip_process.lastRunBufferEnabled();
+    d->zip_process.setLastRunBufferEnabled(false);
+    while (replacements_itr.hasNext()) {
+        replacements_itr.next();
+        QStringList arguments;
+        arguments << "rn";
+        arguments << file_path;
+        arguments << replacements_itr.key();
+        arguments << replacements_itr.value();
+        // unroll the loop once
+        if (replacements_itr.hasNext()) {
+            replacements_itr.next();
+            arguments << replacements_itr.key();
+            arguments << replacements_itr.value();
+        }
+
+        bool result = executeCommand(arguments, errorMsgs);
+        if (ok) {
+            *ok = result;
+        }
+    }
+    d->zip_process.setLastRunBufferEnabled(current_use_run_buffer);
+    d->zip_process.clearLastRunBuffer();
+    return true;
 }
 
 bool Zipper::zipFiles(const QStringList &files, const QString &output_file, QStringList *errorMsgs) {
@@ -141,6 +190,55 @@ bool Zipper::zipFiles(const QStringList &files, const QString &output_file, QStr
     return success;
 }
 
+bool Zipper::zipAppendFiles(const QStringList &files, const QString &output_file, QStringList *errorMsgs) {
+    if (files.isEmpty()) {
+        if (errorMsgs)
+            errorMsgs->append("No files specified.");
+        return false;
+    }
+
+    if (output_file.isEmpty()) {
+        if (errorMsgs)
+            errorMsgs->append("Empty destination file specified.");
+        return false;
+    }
+
+    QFileInfo file_info(output_file);
+    QStringList arguments;
+    arguments << "a";
+
+    if (file_info.completeSuffix().endsWith("zip")) { // Do this to support .SOMETHING_ELSE.zip etc.
+        arguments << "-tzip"; //
+    } else {
+        if (file_info.completeSuffix().isEmpty())
+            arguments << "-tzip";
+        else {
+            if (isValidExtension(file_info.completeSuffix()))
+                arguments << "-t" + file_info.completeSuffix();
+            else
+                arguments << "-tzip";
+        }
+    }
+
+    arguments << output_file;
+
+    // Build up the ignore list in 7zip format:
+    QStringList ignore_list_items = d->ignore_list.split(" ",QString::SkipEmptyParts);
+    foreach (const QString& ignore_token, ignore_list_items)
+        arguments << "-xr!" + ignore_token;
+
+    arguments << "-w" + d->temp_dir;
+
+    // Create a filelist d->temp_dir and use that to archive:
+    QString tmp_file_path = d->temp_dir + "/" + QString::number(QDateTime::currentDateTime().toTime_t());
+    FileUtils::writeTextFile(tmp_file_path,files.join("\n"));
+    arguments << "@" + tmp_file_path;
+
+    bool success = executeCommand(arguments,errorMsgs);
+    QFile::remove(tmp_file_path);
+    return success;
+}
+
 bool Qtilities::Core::Zipper::zipFolder(const QString& source_path, const QString& output_file, ZipMode mode, QStringList* errorMsgs) {
     if (source_path.isEmpty()) {
         if (errorMsgs)
@@ -161,6 +259,49 @@ bool Qtilities::Core::Zipper::zipFolder(const QString& source_path, const QStrin
                 errorMsgs->append("Failed to remove existing destination path at: " + output_file);
             return false;
         }
+    }
+
+    QFileInfo file_info(output_file);
+    QStringList arguments;
+    arguments << "a";
+
+    if (file_info.completeSuffix().endsWith("zip")) { // Do this to support .SOMETHING_ELSE.zip etc.
+        arguments << "-tzip"; //
+    } else {
+        if (file_info.completeSuffix().isEmpty())
+            arguments << "-tzip";
+        else {
+            if (isValidExtension(file_info.completeSuffix()))
+                arguments << "-t" + file_info.completeSuffix();
+            else
+                arguments << "-tzip";
+        }
+    }
+
+    arguments << output_file;
+    arguments << source_path;
+    // Build up the ignore list in 7zip format:
+    QStringList ignore_list_items = d->ignore_list.split(" ",QString::SkipEmptyParts);
+    foreach (const QString& ignore_token, ignore_list_items)
+        arguments << "-xr!" + ignore_token;
+
+    if (mode == CopyMode)
+        arguments << "-mx0";
+    arguments << "-w" + d->temp_dir;
+    return executeCommand(arguments,errorMsgs);
+}
+
+bool Qtilities::Core::Zipper::zipAppendFolder(const QString& source_path, const QString& output_file, ZipMode mode, QStringList* errorMsgs) {
+    if (source_path.isEmpty()) {
+        if (errorMsgs)
+            errorMsgs->append("Empty source path specified.");
+        return false;
+    }
+
+    if (output_file.isEmpty()) {
+        if (errorMsgs)
+            errorMsgs->append("Empty destination file specified.");
+        return false;
     }
 
     QFileInfo file_info(output_file);

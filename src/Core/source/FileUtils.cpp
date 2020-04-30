@@ -332,7 +332,19 @@ QString FileUtils::toNativeSeparators(QString path) {
 }
 
 bool FileUtils::makeLocalCopyOfResource(const QString &resource_path, const QString &local_path, QString *errorMsg, QFile::Permissions local_permissions) {
-    QFile resource_file(resource_path);
+    // 15/08/2016: read scripts from runtime test directory instead of qrc if they exist
+    QString actual_path = resource_path;
+    if (resource_path.at(0) == ':') {
+        QString test_path = resource_path;
+        test_path.replace(0,1,QCoreApplication::applicationDirPath() + "/misc" );
+        QFileInfo test_file(test_path);
+        if (test_file.exists()) {
+            actual_path = test_path;
+        }
+    }
+    LOG_DEBUG("FileUtils::makeLocalCopyOfResource(): Using " + actual_path);
+
+    QFile resource_file(actual_path);
     if (!resource_file.exists()) {
         if (errorMsg)
             *errorMsg = QString("Resource file does not exist at path: %1. It will not be copied.").arg(resource_file.fileName());
@@ -359,7 +371,7 @@ bool FileUtils::makeLocalCopyOfResource(const QString &resource_path, const QStr
     }
     if (!resource_file.copy(local_path)) {
         if (errorMsg)
-            *errorMsg = QString("Failed to create a copy of resource file: %1 -> %2").arg(resource_path).arg(local_path);
+            *errorMsg = QString("Failed to create a copy of resource file: %1 -> %2").arg(actual_path).arg(local_path);
         return false;
     } else {
         if (!QFile::setPermissions(local_path, local_permissions)) {

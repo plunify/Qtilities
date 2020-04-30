@@ -27,8 +27,10 @@ struct Qtilities::Core::QtilitiesProcessPrivateData {
         ignore_read_buffer_slot(false),
         refresh_frequency(0),
         timeout(-1),
-        was_stopped(false) {}
-
+        was_stopped(false),
+        timeout_timer(NULL),
+        is_extension_requested(false),
+        new_timeout_extension(-1){}
     QProcess* process;
     QString default_qprocess_error_string;
     QList<ProcessBufferMessageTypeHint> buffer_message_type_hints;
@@ -41,6 +43,13 @@ struct Qtilities::Core::QtilitiesProcessPrivateData {
     int refresh_frequency;
     int timeout;
     bool was_stopped;
+    QString program_hint;
+
+    /// 15th Sept 2017, to be used to track and manage the timeout of processes
+    QTimer *timeout_timer;
+    bool is_extension_requested;
+    int new_timeout_extension;
+
 };
 
 Qtilities::Core::QtilitiesProcess::QtilitiesProcess(const QString& task_name,
@@ -72,9 +81,11 @@ Qtilities::Core::QtilitiesProcess::QtilitiesProcess(const QString& task_name,
 }
 
 Qtilities::Core::QtilitiesProcess::~QtilitiesProcess() {
+
     if (d->process) {
-        if (state() == ITask::TaskBusy)
+        if (state() == ITask::TaskBusy) {
             completeTask();
+        }
         d->process->kill();
         d->process->deleteLater();
     }
@@ -82,7 +93,11 @@ Qtilities::Core::QtilitiesProcess::~QtilitiesProcess() {
 }
 
 QProcess* Qtilities::Core::QtilitiesProcess::process() {
-    return d->process;
+    if(d && d->process) {
+        return d->process;
+    } else {
+        return 0;
+    }
 }
 
 void Qtilities::Core::QtilitiesProcess::addProcessBufferMessageTypeHint(ProcessBufferMessageTypeHint hint) {
@@ -113,6 +128,24 @@ void Qtilities::Core::QtilitiesProcess::clearLastRunBuffer() {
     d->last_run_buffer.clear();
 }
 
+void Qtilities::Core::QtilitiesProcess::setTimeoutFromMaxTimeout(int i_maxruntime)
+{
+    if (i_maxruntime > d->timeout) {
+        if (d->timeout_timer) {
+            logMessage(QString("Extension of time requested: Previous timeout (%1)s; Extension (%2)s")
+                            .arg(QString::number(d->timeout_timer->interval()))
+                            .arg(QString::number(i_maxruntime - d->timeout)), Logger::Info);
+        }
+        d->new_timeout_extension = i_maxruntime - d->timeout;
+        d->timeout += d->new_timeout_extension;
+        d->is_extension_requested = true;
+    }
+    else {
+        ///Shouldnt be the case as the maxruntime will always include the old timeout as well
+        Q_ASSERT(true);
+    }
+}
+
 void Qtilities::Core::QtilitiesProcess::manualAppendLastRunBuffer() {
     if (d->last_run_buffer_enabled)  {
         while (d->process->canReadLine())
@@ -126,6 +159,7 @@ bool Qtilities::Core::QtilitiesProcess::startProcess(const QString& program,
                                                      int wait_for_started_msecs,
                                                      int timeout_msecs)
 {
+
     if (state() == ITask::TaskPaused)
         return false;
 
@@ -164,6 +198,36 @@ bool Qtilities::Core::QtilitiesProcess::startProcess(const QString& program,
     d->was_stopped = false;
     d->process->start(native_program, arguments, mode);
 
+    QString fileName = QFileInfo(native_program).fileName();
+    if(fileName.contains("java", Qt::CaseInsensitive)) {
+        d->program_hint = "[J] ";
+    } else if (fileName.contains("perl", Qt::CaseInsensitive) ||
+               fileName.contains("generate_strategies_hook", Qt::CaseInsensitive) ||
+               fileName.contains("parse_ise_rpt", Qt::CaseInsensitive) ||
+               fileName.contains("parse_quartus_rpt", Qt::CaseInsensitive) ||
+               fileName.contains("parse_timing", Qt::CaseInsensitive) ||
+               fileName.contains("parse_vivado_rpt", Qt::CaseInsensitive) ||
+               fileName.contains("rprep", Qt::CaseInsensitive) ||
+               fileName.contains("rrun", Qt::CaseInsensitive) ) {
+        d->program_hint = "[P] ";
+    } else if (fileName.contains("Rscript", Qt::CaseInsensitive)) {
+        d->program_hint = "[R] ";
+    } else if (fileName.contains("vivado", Qt::CaseInsensitive)) {
+        d->program_hint = "[V] ";
+    } else if (fileName.contains("libero", Qt::CaseInsensitive)) {
+        d->program_hint = "[L] ";
+    } else if (fileName.contains("quartus", Qt::CaseInsensitive)) {
+        d->program_hint = "[Q] ";
+    } else if (fileName.contains("xtclsh", Qt::CaseInsensitive) || fileName.contains("ise", Qt::CaseInsensitive)) {
+        d->program_hint = "[I] ";
+    } else if (fileName.contains("7za", Qt::CaseInsensitive)) {
+        d->program_hint = "[7] ";
+    } else if (fileName.contains("intime", Qt::CaseInsensitive)) {
+        d->program_hint = "[2] ";
+    } else {
+        d->program_hint = "?[ " + fileName + "] ";
+    }
+
     if (!d->process->waitForStarted(wait_for_started_msecs)) {
         if (d->process_info_messages_enabled)
             logMessage("Failed to start \"" + native_program + "\".", Logger::Error);
@@ -175,11 +239,21 @@ bool Qtilities::Core::QtilitiesProcess::startProcess(const QString& program,
     } else {
         if (timeout_msecs > 0) {
             d->timeout = timeout_msecs;
-            QTimer* timer = new QTimer;
-            timer->setSingleShot(true);
-            timer->start(timeout_msecs);
-            connect(timer,SIGNAL(timeout()),SLOT(stopTimedOut()));
-            connect(d->process,SIGNAL(finished(int)),timer,SLOT(deleteLater()));
+            d->timeout_timer = new QTimer;
+            d->timeout_timer->setSingleShot(true);
+            d->timeout_timer->setInterval(timeout_msecs);
+            
+            connect(d->timeout_timer,SIGNAL(timeout()),SLOT(checkTimeoutForExtension()));
+            d->timeout_timer->start();
+            ////// \brief Original code
+            ///connect(timer,SIGNAL(timeout()),SLOT(stopTimedOut()));
+            ///
+            ///QTimer* timer = new QTimer;
+            ///timer->setSingleShot(true);
+            ///timer->start(timeout_msecs);
+            ///
+            ///
+            connect(d->process,SIGNAL(finished(int)),d->timeout_timer,SLOT(deleteLater()));
             if (d->process_info_messages_enabled)
                 logMessage(QString("A %1 msec timeout was specified for this process. It will be stopped if not completed before the timeout was reached.").arg(timeout_msecs));
         }
@@ -248,6 +322,31 @@ int Qtilities::Core::QtilitiesProcess::guiRefreshFrequency() const {
 }
 
 void Qtilities::Core::QtilitiesProcess::stopProcess() {
+
+    if(!d) {
+        return;
+    }
+
+    if(!d->process) {
+        return;
+    }
+
+    if(d->process->pid() == 0) {
+        return;
+    }
+
+    qint64 qpid;
+
+#ifdef Q_OS_WIN
+  #if QT_VERSION >= QT_VERSION_CHECK(5, 3, 0)
+    qpid = (qint64) process()->processId();
+  #else
+    qpid = (qint64) process()->pid()->dwProcessId;
+    #endif
+#else
+    qpid = process()->pid();
+#endif
+
     d->was_stopped = true;
 
     // New implementation:
@@ -362,7 +461,48 @@ void Qtilities::Core::QtilitiesProcess::stopTimedOut() {
         logMessage(QString("This process ran longer than the timeout period (%1) specified for it.").arg(QString("%1:%2").arg(divresult.quot).arg(diff_time.toString("hh:mm:ss"))),Logger::Error);
     else
         logMessage(QString("This process ran longer than the timeout period (%1) specified for it.").arg(diff_time.toString("hh:mm:ss")),Logger::Error);
+
+    d->was_stopped = true;
     stop();
+}
+
+void Qtilities::Core::QtilitiesProcess::checkTimeoutForExtension()
+{
+    if(d->was_stopped) {
+        return;
+    }
+
+    QTime elapsed_time(0,0);
+    QTime diff_time = elapsed_time.addMSecs(d->timeout);
+
+    if (d->is_extension_requested) {
+
+        logMessage(QString("Extending timeout to %1s")
+                            .arg(QString::number(d->new_timeout_extension)), Logger::Info);
+        d->timeout_timer->setInterval(d->new_timeout_extension);
+        d->timeout_timer->start();
+        d->is_extension_requested = false;
+    }
+    else {
+
+        if (d->new_timeout_extension > 0) {
+            logMessage(QString("Last timeout extension : %1").arg(QString::number(d->new_timeout_extension)), Logger::Info);
+        }
+        ///Revise this with the new_timeout
+        uint msecs_24_hrs = 86400000;
+        div_t divresult = div(d->timeout,msecs_24_hrs);
+        if (divresult.quot > 0)
+            logMessage(QString("This process ran longer than the timeout period (%1) specified for it.").arg(QString("%1:%2").arg(divresult.quot).arg(diff_time.toString("hh:mm:ss"))),Logger::Error);
+        else
+            logMessage(QString("This process ran longer than the timeout period (%1) specified for it.").arg(diff_time.toString("hh:mm:ss")),Logger::Error);
+
+        if(d->was_stopped) {
+            return;
+        }
+
+        d->was_stopped = true;
+        stop();
+    }
 }
 
 void Qtilities::Core::QtilitiesProcess::readStandardOutput() {
@@ -425,7 +565,7 @@ void Qtilities::Core::QtilitiesProcess::processSingleBufferMessage(const QString
     // If logging is disabled, we can skip the processing of the buffer message altogether:
     if (loggingEnabled()) {
         if (d->buffer_message_type_hints.isEmpty()) {
-            logMessage(buffer_message,msg_type);
+            logMessage(d->program_hint + buffer_message.trimmed(),msg_type);
         } else {
             bool found_match = false;
             bool found_match_is_stopper = false;
@@ -493,14 +633,14 @@ void Qtilities::Core::QtilitiesProcess::processSingleBufferMessage(const QString
 
                     found_match = true;
                     if (hint.d_message_type != Logger::None && log_this_message) {
-                        logMessage(buffer_message,hint.d_message_type);
+                        logMessage(d->program_hint + buffer_message.trimmed(),hint.d_message_type);
                         if (hint.d_is_stopper && !hint.d_stop_message.isEmpty())
-                            logMessage(hint.d_stop_message,hint.d_stop_message_type);
+                            logMessage(d->program_hint + hint.d_stop_message,hint.d_stop_message_type);
                     }
                 }
             }
 
-            if (found_match_is_stopper) {
+            if (found_match_is_stopper && !d->was_stopped) {
                 d->was_stopped = true;
                 stopProcess();
                 return;
@@ -508,7 +648,7 @@ void Qtilities::Core::QtilitiesProcess::processSingleBufferMessage(const QString
 
             if (!found_match) {
                 if (d->active_message_disablers.isEmpty()) {
-                    logMessage(buffer_message,msg_type);
+                    logMessage(d->program_hint + buffer_message.trimmed(),msg_type);
                 } else {
                     bool is_unblocked = true;
                     foreach (const ProcessBufferMessageTypeHint& disabler_hint, d->active_message_disablers) {
@@ -518,7 +658,7 @@ void Qtilities::Core::QtilitiesProcess::processSingleBufferMessage(const QString
                         }
                     }
                     if (is_unblocked)
-                        logMessage(buffer_message,msg_type);
+                        logMessage(d->program_hint + buffer_message.trimmed(),msg_type);
                 }
             }
         }

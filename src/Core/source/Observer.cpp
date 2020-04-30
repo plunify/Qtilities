@@ -1538,6 +1538,7 @@ QString Qtilities::Core::Observer::subjectNameInContext(const QObject* obj) cons
         return instance_name.toString();
     else // If we don't use the alias map, the object name will be sync'ed with the object name category by the managing NamingPolicyFilter:
         return obj->objectName();
+
 }
 
 Qtilities::Core::QtilitiesCategory Qtilities::Core::Observer::subjectCategoryInContext(const QObject* obj) const {
@@ -1706,6 +1707,52 @@ QStringList Qtilities::Core::Observer::subjectDisplayedNames(const QString& ifac
         }
     }
     return subject_names;
+}
+
+const QStringList Qtilities::Core::Observer::getCurrentCategories() {
+    QStringList current_category_names;
+    int count = observerData->subject_list.count();
+    // In order to keep track whether an item has been inserted/deleted from tree node need to 
+    // collect current_category_to_count map (e.g <category_name, items_count_for_that_cat>).
+    QMap<QString, int> current_category_to_count;
+    for (int i = 0; i < count; ++i) {
+        QVariant category_variant = getMultiContextPropertyValue(subjectAt(i),qti_prop_CATEGORY_MAP);
+        // Handles cases where category is valid, thus it contains levels.
+        if (category_variant.isValid()) {
+            QtilitiesCategory current_category = category_variant.value<QtilitiesCategory>();
+            if (!(current_category_to_count.contains(current_category.toString()))) {
+               current_category_to_count[current_category.toString()] = 1;
+            } else {
+               ++current_category_to_count[current_category.toString()];
+                
+            }
+        }
+    }
+    // Handles tree item removing/adding cases (need to keep expanded only that node).
+    if (observerData->prev_category_to_count.isEmpty()) {
+        // Initialize prev_category_to_count map to keep previews count for each category.
+        observerData->prev_category_to_count = current_category_to_count;
+    } else {
+        // Handles cases when all items for current category are deleted.
+        if (current_category_to_count.count() < observerData->prev_category_to_count.count()) {
+            observerData->prev_category_to_count = current_category_to_count;
+            return QStringList();
+        }
+        // Get current category where an item is adding/removing.
+        QMap<QString, int>::iterator it;
+        for (it = current_category_to_count.begin(); it != current_category_to_count.end(); ++it) {
+            if (!observerData->prev_category_to_count.contains(it.key())) {
+                observerData->prev_category_to_count[it.key()] = it.value();
+                current_category_names << it.key();
+            } else if (it.value() != observerData->prev_category_to_count[it.key()]) {
+                current_category_names << it.key();
+            }
+            observerData->prev_category_to_count[it.key()] = current_category_to_count[it.key()];
+        }
+        
+    }
+
+    return current_category_names;
 }
 
 QStringList Qtilities::Core::Observer::subjectNamesByCategory(const QtilitiesCategory& category) const {
@@ -1919,20 +1966,26 @@ QList<QObject*> Qtilities::Core::Observer::subjectReferencesByCategory(const Qti
     return list;
 }
 
-QMap<QPointer<QObject>, QString> Observer::subjectReferenceCategoryMap() const {
-    QMap<QPointer<QObject>, QString> map;
+QList<QPair<QPointer<QObject>, QString> > Observer::subjectReferenceCategoryMap() const {
+    QList<QPair<QPointer<QObject>, QString> > tree_items;
 
     int count = observerData->subject_list.count();
     for (int i = 0; i < count; ++i) {
         QPointer<QObject> obj = subjectAt(i);
         QVariant category_variant = getMultiContextPropertyValue(obj,qti_prop_CATEGORY_MAP);
-        if (category_variant.isValid())
-            map[obj] = (category_variant.value<QtilitiesCategory>()).toString("::");
-        else
-            map[obj] = "";
+        QPair<QPointer<QObject>, QString> pair;
+        if (category_variant.isValid()) {
+            pair.first = obj;
+            pair.second = (category_variant.value<QtilitiesCategory>()).toString("::");
+            tree_items.append(pair);
+        } else {
+            pair.first = obj;
+            pair.second = "";
+            tree_items.append(pair);
+        }
     }
 
-    return map;
+    return tree_items;
 }
 
 QMap<QPointer<QObject>, QString> Qtilities::Core::Observer::subjectMap() {

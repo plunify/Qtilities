@@ -1272,9 +1272,14 @@ void Qtilities::CoreGui::ObserverTreeModel::receiveBuildObserverTreeItem(Observe
     emit treeModelBuildEnded();
 }
 
-void Qtilities::CoreGui::ObserverTreeModel::setExpandedItems(const QList<QPointer<QObject> >& expanded_objects, const QStringList& expanded_categories) {
+void Qtilities::CoreGui::ObserverTreeModel::setExpandedItems(const QList<QPointer<QObject> >& expanded_objects, const QStringList& collapsed_categories) {
     //qDebug() << "setExpandedItems" << expanded_categories;
-    d->expanded_categories = expanded_categories;
+    
+    d->expanded_categories.clear();
+    QStringList current_categories = d_observer->getCurrentCategories();
+    if (!collapsed_categories.isEmpty()) {
+        d->expanded_categories = current_categories;
+    }
     d->expanded_objects = expanded_objects;
 }
 

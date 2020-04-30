@@ -236,9 +236,15 @@ example2_from_string.setIsVersionRevisionUsed(false);
             //! Sets the development stage of this version number.
             void setDevelopmentStage(DevelopmentStage stage);
             //! Gets the development stage version.
-            int versionDevelopmentStage() const;
+            QString versionDevelopmentStage() const;
             //! Sets the development stage version.
             void setVersionDevelopmentStage(int version);
+            //! Sets QString-Value to the development stage version
+            void setVersionDevelopmentStage(QString version);
+
+            //! Sets QString-value to the version variant
+            void setVersionVariant(QString variant);
+            QString getVersionVariant() const;
 
             //! Returns a string represenation of the complete VersionNumber, thus the major, minor and revision parts of the version.
             /*!

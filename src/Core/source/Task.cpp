@@ -84,6 +84,7 @@ Qtilities::Core::Task::Task(const QString& task_name, bool enable_logging, QObje
     connect(&d->elapsed_time_notification_timer,SIGNAL(timeout()),SLOT(broadcastElapsedTimeChanged()));
 
     QtilitiesCoreApplication::taskManager()->assignIdToTask(this);
+
 }
 
 Qtilities::Core::Task::~Task() {
@@ -456,10 +457,16 @@ void Qtilities::Core::Task::start() {
 }
 
 void Qtilities::Core::Task::stop() {
+
     if (d->can_stop) {
         if (d->task_state == ITask::TaskBusy) {
+            //LOG_INFO(QString("SYSTEM    : Task \"%1\" busy. Waiting to stop").arg(d->task_name));
             emit stopTaskRequest();
         }
+        LOG_INFO(QString("SYSTEM    : Stopping task \"%1\".").arg(d->task_name));
+        //LOG_INFO(QString("SYSTEM    : Status: %1").arg(d->task_state));
+    } else {
+        LOG_INFO(QString("SYSTEM    : Stop requested but task \"%1\" cannot be stopped. (Status %2)").arg(d->task_name).arg(d->task_state));
     }
 }
 
@@ -627,16 +634,16 @@ bool Qtilities::Core::Task::completeTask(ITask::TaskResult result, const QString
     if (!taskName().isEmpty())
         task_name_to_log = QString("\"%1\" ").arg(taskName());
     if (d->task_result == ITask::TaskSuccessful) {
-        logMessage(QString("Task %1completed successfully (%2).").arg(task_name_to_log).arg(elapsedTimeString()));
+        logMessage(QString("   ****    %1Task Completed. Elapsed Time: %2. ***").arg(task_name_to_log).arg(elapsedTimeString()));
     } else if (d->task_result == ITask::TaskSuccessfulWithErrors) {
-        logMessage(QString("Task %1completed successfully but some warnings and/or errors were logged while the task was busy. See the task log for more information (%2).").arg(task_name_to_log).arg(elapsedTimeString()),Logger::Warning);
+        logMessage(QString("   ****    Task %1completed successfully but some warnings and/or errors were logged while the task was busy. See the task log for more information (%2).").arg(task_name_to_log).arg(elapsedTimeString()),Logger::Warning);
     } else if (d->task_result == ITask::TaskSuccessfulWithWarnings) {
-        logMessage(QString("Task %1completed successfully but some warnings were logged while the task was busy. See the task log for more information (%2).").arg(task_name_to_log).arg(elapsedTimeString()),Logger::Warning);
+        logMessage(QString("   ****    Task %1completed successfully but some warnings were logged while the task was busy. See the task log for more information (%2).").arg(task_name_to_log).arg(elapsedTimeString()),Logger::Warning);
     } else if (d->task_result == ITask::TaskFailed) {
         if (d->task_state == ITask::TaskStopped)
-            logMessage(QString("Task %1was stopped (%2).").arg(task_name_to_log).arg(elapsedTimeString()),Logger::Info);
+            logMessage(QString("   ****    Task %1was stopped (%2).").arg(task_name_to_log).arg(elapsedTimeString()),Logger::Info);
         else
-            logMessage(QString("Task %1failed. See the task log for more information (%2).").arg(task_name_to_log).arg(elapsedTimeString()),Logger::Error);
+            logMessage(QString("   ****    Task %1failed. See the task log for more information (%2).").arg(task_name_to_log).arg(elapsedTimeString()),Logger::Error);
     }
 
     // Note: this signal is blocked when task was stopped in Task::stopTask(). The stopTask() function emits it for us.

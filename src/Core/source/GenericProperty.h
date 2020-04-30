@@ -321,6 +321,8 @@ namespace Qtilities {
             bool setDefaultValueString(const QString& value, QString* errorMsg = 0);
             //! Sets the default value of the property.
             bool setDefaultValue(const QVariant& value, QString* errorMsg = 0);
+            //! Sets the text visible value of the property.
+            void setTextVisible(bool);
             //! Gets the switch name of the property. If no switch is available, an empty string is returned.
             QString switchName() const;
             //! Gets the description of the property.
@@ -500,6 +502,7 @@ namespace Qtilities {
             int intValue() const;
             void setDoubleValue(double value);
             double doubleValue() const;
+            bool textVisible() const;
             //! The value will be joined using the backend storage seperator which is , by default.
             void setFileList(const QStringList& list);
             //! Adds files to the current files in this property if it is of type TypeFileList.
